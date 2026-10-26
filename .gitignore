@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+build/
+coverage/
+.vercel/
+.env
+.env*.local
+.DS_Store
+*.log
+
+# Supabase CLI local state (project ref, pooler URL)
+supabase/.temp/
