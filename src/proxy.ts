@@ -21,8 +21,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     },
   );
 
-  const { data } = await supabase.auth.getClaims();
-  const signedIn = Boolean((data as { claims?: { sub?: string } })?.claims?.sub);
+  // getSession reads from the cookie — no network round-trip, safe for middleware.
+  const { data: { session } } = await supabase.auth.getSession();
+  const signedIn = Boolean(session?.user);
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p));
 

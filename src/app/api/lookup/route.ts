@@ -4,8 +4,8 @@ import { cleanTerm, lookupAll } from '@/lib/dictionary';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const supabase = await getServerSupabase();
-  const { data } = await supabase.auth.getClaims();
-  if (!(data as { claims?: { sub?: string } })?.claims?.sub) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Sign in to look up words.' }, { status: 401 });
   }
 
@@ -19,7 +19,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const fresh = params.get('fresh') === '1';
-  const result = await lookupAll(term, { fresh, lc: params.get('lc') ?? undefined, rc: params.get('rc') ?? undefined });
+  const result = await lookupAll(term, {
+    fresh,
+    lc: params.get('lc') ?? undefined,
+    rc: params.get('rc') ?? undefined,
+  });
   return NextResponse.json(result, {
     headers: { 'Cache-Control': fresh ? 'no-store' : 'private, max-age=3600' },
   });

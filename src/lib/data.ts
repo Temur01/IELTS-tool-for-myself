@@ -1,6 +1,4 @@
 'use client';
-// Data access from the browser. Row-level security limits every query to the
-// signed-in user's rows.
 import { getSupabase } from './supabase/client';
 import { normalizeSettings } from './srs';
 import type { Word, Review, SrsSettings, ReviewRecord, RecordReviewResult } from './types';
@@ -20,7 +18,9 @@ function pick(obj: Partial<Word>): Partial<Word> {
 
 export function friendlyError(error: unknown): string | null {
   if (!error) return null;
-  if (typeof navigator !== 'undefined' && !navigator.onLine) return 'You are offline. Check your connection and try again.';
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return 'You are offline. Check your connection and try again.';
+  }
   const err = error as { code?: string; message?: string };
   if (err.code === '23505') return 'You already saved this word with the same sense. Choose a different sense or edit the existing entry.';
   if (err.code === '42501') return 'Permission denied. Try signing out and in again.';
@@ -28,7 +28,8 @@ export function friendlyError(error: unknown): string | null {
   return err.message || 'Something went wrong.';
 }
 
-async function run<T>(query: PromiseLike<{ data: T | null; error: unknown }>): Promise<T> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function run<T = any>(query: PromiseLike<{ data: T | null; error: unknown }>): Promise<T> {
   const { data, error } = await query;
   if (error) {
     const err = error as { code?: string };
@@ -38,27 +39,37 @@ async function run<T>(query: PromiseLike<{ data: T | null; error: unknown }>): P
 }
 
 export async function listWords(): Promise<Word[]> {
-  return run(getSupabase().from('words').select('*').order('created_at', { ascending: false }));
+  return run<Word[]>(
+    getSupabase().from('words').select('*').order('created_at', { ascending: false }),
+  );
 }
 
 export async function getWord(id: string): Promise<Word | null> {
-  return run(getSupabase().from('words').select('*').eq('id', id).maybeSingle());
+  return run<Word | null>(
+    getSupabase().from('words').select('*').eq('id', id).maybeSingle(),
+  );
 }
 
-export async function findByTerm(term: string, excludeId?: string): Promise<Pick<Word, 'id' | 'term' | 'part_of_speech' | 'sense' | 'sense_key' | 'meaning'>[]> {
+export async function findByTerm(
+  term: string,
+  excludeId?: string,
+): Promise<Pick<Word, 'id' | 'term' | 'part_of_speech' | 'sense' | 'sense_key' | 'meaning'>[]> {
   const key = term.replace(/\s+/g, ' ').trim().toLowerCase();
   if (!key) return [];
-  let q = getSupabase().from('words').select('id, term, part_of_speech, sense, sense_key, meaning').eq('term_key', key);
+  let q = getSupabase()
+    .from('words')
+    .select('id, term, part_of_speech, sense, sense_key, meaning')
+    .eq('term_key', key);
   if (excludeId) q = q.neq('id', excludeId);
   return run(q);
 }
 
 export async function createWord(word: Partial<Word>): Promise<Word> {
-  return run(getSupabase().from('words').insert(pick(word)).select().single());
+  return run<Word>(getSupabase().from('words').insert(pick(word)).select().single());
 }
 
 export async function updateWord(id: string, patch: Partial<Word>): Promise<Word> {
-  return run(getSupabase().from('words').update(pick(patch)).eq('id', id).select().single());
+  return run<Word>(getSupabase().from('words').update(pick(patch)).eq('id', id).select().single());
 }
 
 export async function deleteWord(id: string): Promise<null> {
@@ -66,34 +77,42 @@ export async function deleteWord(id: string): Promise<null> {
 }
 
 export async function listReviews(wordId: string): Promise<Review[]> {
-  return run(
-    getSupabase().from('reviews').select('*').eq('word_id', wordId).order('reviewed_at', { ascending: false }).limit(100),
+  return run<Review[]>(
+    getSupabase()
+      .from('reviews')
+      .select('*')
+      .eq('word_id', wordId)
+      .order('reviewed_at', { ascending: false })
+      .limit(100),
   );
 }
 
 export async function listAllReviews(): Promise<Review[]> {
-  return run(getSupabase().from('reviews').select('*').order('reviewed_at', { ascending: true }));
+  return run<Review[]>(
+    getSupabase().from('reviews').select('*').order('reviewed_at', { ascending: true }),
+  );
 }
 
 export async function getSettings(): Promise<SrsSettings> {
-  const row = await run(getSupabase().from('user_settings').select('srs').maybeSingle()) as { srs?: Partial<SrsSettings> } | null;
+  const row = await run<{ srs: Partial<SrsSettings> } | null>(
+    getSupabase().from('user_settings').select('srs').maybeSingle(),
+  );
   return normalizeSettings(row?.srs);
 }
 
 export async function saveSettings(srs: Partial<SrsSettings>): Promise<{ srs: SrsSettings }> {
-  const { data: claims } = await getSupabase().auth.getClaims();
-  return run(
+  const { data: { user } } = await getSupabase().auth.getUser();
+  return run<{ srs: SrsSettings }>(
     getSupabase()
       .from('user_settings')
-      .upsert({ user_id: (claims as { claims?: { sub?: string } })?.claims?.sub, srs: normalizeSettings(srs) })
+      .upsert({ user_id: user?.id, srs: normalizeSettings(srs) })
       .select()
       .single(),
   );
 }
 
 // ---------------------------------------------------------------------------
-// Reviews, with a small offline outbox so a dropped connection never loses
-// a rating. Pending reviews are kept in localStorage and replayed in order.
+// Reviews — offline outbox so a dropped connection never loses a rating.
 // ---------------------------------------------------------------------------
 
 const OUTBOX_KEY = 'ielts-vocab:outbox';
@@ -115,7 +134,7 @@ function writeOutbox(items: OutboxEntry[]): void {
   try {
     localStorage.setItem(OUTBOX_KEY, JSON.stringify(items));
   } catch {
-    // Storage unavailable (private mode); nothing more we can do.
+    // Storage unavailable (private mode).
   }
 }
 
@@ -124,7 +143,7 @@ export function pendingReviewCount(): number {
 }
 
 function sendReview(r: OutboxEntry): Promise<Word> {
-  return run(
+  return run<Word>(
     getSupabase().rpc('record_review', {
       p_word_id: r.wordId,
       p_mode: r.mode,
