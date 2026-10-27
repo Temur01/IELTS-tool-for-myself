@@ -92,6 +92,24 @@ Mode weights favour recognition (recall, choice) for new/difficult words; produc
 
 `recordReview` writes to Supabase immediately. On network failure it pushes to `localStorage`'s `ielts-vocab:outbox` array. `flushOutbox` drains it in order on reconnect (deduplicated, prevents concurrent flush with `flushing` lock). Only real DB errors (`err.code` truthy) are re-thrown; network errors silently queue.
 
+## HTTP / data fetching
+
+All external HTTP calls go through **axios** (not native `fetch`):
+
+| Location | Direction | Library |
+|---|---|---|
+| `src/lib/dictionary/http.ts` | Server → external dictionary APIs | `axios` |
+| `src/components/SynonymPanel.tsx` | Browser → `/api/lookup` | `axios` |
+
+`http.ts` exports a `getJson(url, opts)` helper that:
+- Uses `validateStatus: () => true` so HTTP errors are handled explicitly (not thrown by axios)
+- Retries once on network errors (`retryable: true`)
+- Throws `ProviderError` with a typed status (`not_found` · `rate_limited` · `error`)
+
+In components, use `axios.isAxiosError(err)` to distinguish network/HTTP errors from programming errors.
+
+**Do not** use native `fetch` directly — use `axios` or the `getJson` helper.
+
 ## TypeScript conventions
 
 - Shared types live **only** in `src/lib/types.ts`. Do not duplicate them.

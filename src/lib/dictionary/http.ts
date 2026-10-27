@@ -1,4 +1,5 @@
-// Small fetch wrapper for dictionary providers (server only).
+// Small axios wrapper for dictionary providers (server only).
+import axios, { AxiosError } from 'axios';
 
 export const CACHE_SECONDS = 60 * 60 * 24;
 const TIMEOUT_MS = 7000;
@@ -32,35 +33,38 @@ export async function getJson(url: string, options: GetJsonOptions = {}): Promis
   }
 }
 
-async function getJsonOnce(url: string, { fresh = false, notFoundStatuses = [404], isNotFoundBody }: GetJsonOptions = {}): Promise<unknown> {
-  let res: Response;
+async function getJsonOnce(url: string, { notFoundStatuses = [404], isNotFoundBody }: GetJsonOptions = {}): Promise<unknown> {
+  let status: number;
+  let data: unknown;
+
   try {
-    res = await fetch(url, {
+    const res = await axios.get<unknown>(url, {
       headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      ...(fresh ? { cache: 'no-store' as RequestCache } : { next: { revalidate: CACHE_SECONDS } } as RequestInit),
+      timeout: TIMEOUT_MS,
+      // Let us inspect the status ourselves instead of having axios throw on 4xx/5xx.
+      validateStatus: () => true,
     });
-  } catch (err: unknown) {
-    const e = err as { name?: string };
-    const timeout = e?.name === 'TimeoutError' || e?.name === 'AbortError';
-    if (timeout) throw new ProviderError('error', 'The provider took too long to respond.');
-    const retryable = Object.assign(new ProviderError('error', 'Could not reach the provider.'), { retryable: true });
-    throw retryable;
-  }
-  if (notFoundStatuses.includes(res.status)) throw new ProviderError('not_found', 'No entry found.');
-  if (res.status === 429) throw new ProviderError('rate_limited', 'Rate limit reached. Try again later.');
-  if (!res.ok) {
-    if (isNotFoundBody) {
-      const body = await res.json().catch(() => null);
-      if (body && isNotFoundBody(body)) throw new ProviderError('not_found', 'No entry found.');
+    status = res.status;
+    data = res.data;
+  } catch (err) {
+    const e = err as AxiosError;
+    if (e.code === 'ECONNABORTED' || e.code === 'ERR_CANCELED') {
+      throw new ProviderError('error', 'The provider took too long to respond.');
     }
-    throw Object.assign(new ProviderError('error', `Provider returned HTTP ${res.status}.`), { retryable: res.status >= 500 });
+    throw Object.assign(new ProviderError('error', 'Could not reach the provider.'), { retryable: true });
   }
-  try {
-    return await res.json();
-  } catch {
-    throw new ProviderError('error', 'Provider sent an unreadable response.');
+
+  if (notFoundStatuses.includes(status)) throw new ProviderError('not_found', 'No entry found.');
+  if (status === 429) throw new ProviderError('rate_limited', 'Rate limit reached. Try again later.');
+  if (status >= 400) {
+    if (isNotFoundBody && isNotFoundBody(data)) throw new ProviderError('not_found', 'No entry found.');
+    throw Object.assign(
+      new ProviderError('error', `Provider returned HTTP ${status}.`),
+      { retryable: status >= 500 },
+    );
   }
+
+  return data;
 }
 
 export const POS_NAMES: Record<string, string> = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb' };

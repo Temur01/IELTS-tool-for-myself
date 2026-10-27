@@ -1,4 +1,5 @@
 'use client';
+import axios from 'axios';
 import { useState } from 'react';
 import { neighbours } from '@/lib/answer';
 import { buildCandidates, mergeCandidates, rankSenses, senseKey } from '@/lib/senses';
@@ -41,28 +42,31 @@ export default function SynonymPanel({ term, context, meaning, value, onChange, 
     setError('');
     try {
       const { lc, rc } = neighbours(context, term);
-      const params = new URLSearchParams({ term: term.trim() });
-      if (lc) params.set('lc', lc);
-      if (rc) params.set('rc', rc);
-      if (fresh) params.set('fresh', '1');
-      const res = await fetch(`/api/lookup?${params}`, { cache: fresh ? 'no-store' : 'default' });
-      const body = await res.json().catch(() => ({})) as { error?: string; retrievedAt?: string; providers?: unknown[]; audio?: Audio[] };
-      if (!res.ok) throw new Error(body.error || `Lookup failed (HTTP ${res.status}).`);
-      const lookupBody = body as LookupResult;
+      const params: Record<string, string> = { term: term.trim() };
+      if (lc) params.lc = lc;
+      if (rc) params.rc = rc;
+      if (fresh) params.fresh = '1';
+
+      const { data: lookupBody } = await axios.get<LookupResult>('/api/lookup', { params });
+
       setLookup(lookupBody);
       setSelected(null);
-      const lookupMeta = { retrievedAt: lookupBody.retrievedAt, providers: lookupBody.providers };
       onChange({
-        lookup_meta: lookupMeta,
+        lookup_meta: { retrievedAt: lookupBody.retrievedAt, providers: lookupBody.providers },
         synonyms: mergeCandidates(value.synonyms, buildCandidates(lookupBody, null, term)),
         ...(value.audio || !lookupBody.audio.length ? {} : { audio: lookupBody.audio[0] }),
       });
     } catch (err: unknown) {
-      setError(
-        typeof navigator !== 'undefined' && !navigator.onLine
-          ? 'You are offline. You can save the word now and check synonyms later.'
-          : (err as Error).message || 'Lookup failed.',
-      );
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setError('You are offline. You can save the word now and check synonyms later.');
+        return;
+      }
+      if (axios.isAxiosError(err)) {
+        const msg = (err.response?.data as { error?: string })?.error;
+        setError(msg || `Lookup failed (HTTP ${err.response?.status ?? 'unknown'}).`);
+      } else {
+        setError((err as Error).message || 'Lookup failed.');
+      }
     } finally {
       setLoading(false);
     }
@@ -136,7 +140,7 @@ export default function SynonymPanel({ term, context, meaning, value, onChange, 
               {lookup.providers.some((p) => p.status === 'ok' || p.status === 'not_found')
                 ? 'No dictionary entry or synonyms found. Check the spelling, or try the base form of a phrase.'
                 : 'The dictionaries are unavailable right now.'}
-              You can still save the word with your own meaning.
+              {' '}You can still save the word with your own meaning.
               {lookup.providers.flatMap((p) => p.suggestions ?? []).length > 0 &&
                 ` Did you mean: ${lookup.providers.flatMap((p) => p.suggestions ?? []).join(', ')}?`}
             </Notice>
@@ -200,7 +204,8 @@ export default function SynonymPanel({ term, context, meaning, value, onChange, 
                     </label>
                     <AudioButton audio={a} term={term} label="Play" />
                     <span className="hint">
-                      Audio: <a href={a.sourceUrl || a.license.url} target="_blank" rel="noreferrer">Wikimedia Commons</a>,{' '}
+                      Audio:{' '}
+                      <a href={a.sourceUrl || a.license.url} target="_blank" rel="noreferrer">Wikimedia Commons</a>,{' '}
                       <a href={a.license.url} target="_blank" rel="noreferrer">{a.license.name}</a>
                     </span>
                   </li>
@@ -213,8 +218,10 @@ export default function SynonymPanel({ term, context, meaning, value, onChange, 
 
       {!lookup && value.sense && (
         <p className="small">
-          <span className="muted">Selected sense:</span> {value.sense.partOfSpeech && <em>{value.sense.partOfSpeech}. </em>}
-          {value.sense.definition} <span className="hint">({value.sense.providerName})</span>
+          <span className="muted">Selected sense:</span>{' '}
+          {value.sense.partOfSpeech && <em>{value.sense.partOfSpeech}. </em>}
+          {value.sense.definition}{' '}
+          <span className="hint">({value.sense.providerName})</span>
         </p>
       )}
 
