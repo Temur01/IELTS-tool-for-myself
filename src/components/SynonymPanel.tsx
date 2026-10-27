@@ -1,5 +1,4 @@
 'use client';
-import axios from 'axios';
 import { useState } from 'react';
 import { neighbours } from '@/lib/answer';
 import { buildCandidates, mergeCandidates, rankSenses, senseKey } from '@/lib/senses';
@@ -42,28 +41,25 @@ export default function SynonymPanel({ term, context, meaning, value, onChange, 
     setError('');
     try {
       const { lc, rc } = neighbours(context, term);
-      const params: Record<string, string> = { term: term.trim() };
-      if (lc) params.lc = lc;
-      if (rc) params.rc = rc;
-      if (fresh) params.fresh = '1';
+      const params = new URLSearchParams({ term: term.trim() });
+      if (lc) params.set('lc', lc);
+      if (rc) params.set('rc', rc);
+      if (fresh) params.set('fresh', '1');
 
-      const { data: lookupBody } = await axios.get<LookupResult>('/api/lookup', { params });
+      const res = await fetch(`/api/lookup?${params}`);
+      const body = await res.json().catch(() => ({})) as LookupResult & { error?: string };
+      if (!res.ok) throw new Error(body.error || `Lookup failed (HTTP ${res.status}).`);
 
-      setLookup(lookupBody);
+      setLookup(body);
       setSelected(null);
       onChange({
-        lookup_meta: { retrievedAt: lookupBody.retrievedAt, providers: lookupBody.providers },
-        synonyms: mergeCandidates(value.synonyms, buildCandidates(lookupBody, null, term)),
-        ...(value.audio || !lookupBody.audio.length ? {} : { audio: lookupBody.audio[0] }),
+        lookup_meta: { retrievedAt: body.retrievedAt, providers: body.providers },
+        synonyms: mergeCandidates(value.synonyms, buildCandidates(body, null, term)),
+        ...(value.audio || !body.audio.length ? {} : { audio: body.audio[0] }),
       });
     } catch (err: unknown) {
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
         setError('You are offline. You can save the word now and check synonyms later.');
-        return;
-      }
-      if (axios.isAxiosError(err)) {
-        const msg = (err.response?.data as { error?: string })?.error;
-        setError(msg || `Lookup failed (HTTP ${err.response?.status ?? 'unknown'}).`);
       } else {
         setError((err as Error).message || 'Lookup failed.');
       }

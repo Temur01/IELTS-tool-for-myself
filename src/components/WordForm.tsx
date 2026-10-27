@@ -25,7 +25,9 @@ export const BLANK_WORD: WordFormData = {
   status: 'active',
 };
 
-const SOURCE_OPTIONS = Object.entries(SOURCES).map(([value, label]) => ({ value, label }));
+import type { Source } from '@/lib/types';
+
+const SOURCE_OPTIONS = (Object.entries(SOURCES) as [Source, string][]).map(([value, label]) => ({ value, label }));
 
 type WordWithId = WordFormData & { id?: string };
 
