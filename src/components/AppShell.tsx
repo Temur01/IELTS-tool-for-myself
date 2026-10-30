@@ -33,7 +33,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const bare = pathname === '/login';
+  const bare = pathname === '/login' || pathname === '/reset-password';
 
   return (
     <div className="shell">
