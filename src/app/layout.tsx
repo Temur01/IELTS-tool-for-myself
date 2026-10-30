@@ -8,7 +8,7 @@ const serif = Instrument_Serif({ subsets: ['latin'], weight: '400', variable: '-
 const sans = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: { default: 'Lexi · IELTS Vocabulary', template: '%s · Lexi' },
+  title: { default: 'Fara · IELTS Vocabulary', template: '%s · Fara' },
   description: 'Capture, paraphrase and review vocabulary for IELTS Academic.',
   robots: { index: false, follow: false },
 };

@@ -53,7 +53,7 @@ function Form() {
     <div className="auth stack">
       <div style={{ textAlign: 'center' }}>
         <div className="brand-mark" style={{ margin: '0 auto 0.75rem', width: 48, height: 48, fontSize: '1.3rem' }} aria-hidden="true">L</div>
-        <h1>Lexi</h1>
+        <h1>Fara</h1>
         <p className="muted">Your IELTS vocabulary, reviewed at the right time.</p>
       </div>
       <form className="card" onSubmit={submit}>

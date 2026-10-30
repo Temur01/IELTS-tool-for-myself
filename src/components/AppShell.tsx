@@ -46,8 +46,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <header className="topbar">
           <div className="topbar-inner">
             <Link href="/" className="brand">
-              <span className="brand-mark" aria-hidden="true">L</span>
-              Lexi
+              <span className="brand-mark" aria-hidden="true">F</span>
+              Fara
             </Link>
             <nav className="nav" aria-label="Main">
               {NAV.map((item) => (

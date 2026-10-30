@@ -1,4 +1,4 @@
-# Lexi — IELTS vocabulary practice
+# Fara — IELTS vocabulary practice
 
 A mobile-first web app for capturing words from IELTS Reading, Listening and everyday English, choosing the
 right sense, judging synonym candidates against your own sentence, and reviewing everything with spaced repetition.

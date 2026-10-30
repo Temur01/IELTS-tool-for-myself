@@ -1,4 +1,4 @@
-# Lexi — IELTS Vocabulary App
+# Fara — IELTS Vocabulary App
 
 A mobile-first spaced repetition vocabulary app built with Next.js 16 / React 19 / TypeScript / Supabase. Users capture words from IELTS reading/listening, look up senses and synonyms, and review through 8 practice modes driven by the SM-2 algorithm.
 
