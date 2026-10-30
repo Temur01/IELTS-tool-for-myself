@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSupabase } from '@/lib/supabase/server';
+import { getVerifiedContext } from '@/lib/supabase/context';
 import { cleanTerm, lookupAll } from '@/lib/dictionary';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { error: authError } = await getVerifiedContext();
+  if (authError) {
     return NextResponse.json({ error: 'Sign in to look up words.' }, { status: 401 });
   }
 
